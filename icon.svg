@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <defs>
+    <linearGradient id="body" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#3B7BFF"/>
+      <stop offset="1" stop-color="#1E56C8"/>
+    </linearGradient>
+    <linearGradient id="screen" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#F6FAFF"/>
+      <stop offset="1" stop-color="#D9E8FF"/>
+    </linearGradient>
+  </defs>
+
+  <!-- monitor body -->
+  <rect x="20" y="26" width="216" height="152" rx="18" fill="url(#body)"/>
+  <!-- screen -->
+  <rect x="34" y="40" width="188" height="124" rx="8" fill="url(#screen)"/>
+  <!-- stand neck -->
+  <path d="M106 178 h44 v20 h-44 z" fill="#173F8C"/>
+  <!-- stand base -->
+  <rect x="70" y="198" width="116" height="20" rx="10" fill="url(#body)"/>
+
+  <!-- eye-off glyph: an eye with a slash, i.e. "hidden from the tray" -->
+  <g>
+    <path d="M62 104 C78 82 104 68 128 68 C152 68 178 82 194 104 C178 126 152 140 128 140 C104 140 78 126 62 104 Z"
+          fill="#FFFFFF" stroke="#1E56C8" stroke-width="8" stroke-linejoin="round"/>
+    <circle cx="128" cy="104" r="13" fill="#1E56C8"/>
+    <line x1="78" y1="134" x2="178" y2="74" stroke="#1E56C8" stroke-width="13" stroke-linecap="round"/>
+  </g>
+</svg>

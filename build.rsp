@@ -1,0 +1,28 @@
+/nologo
+/target:winexe
+/platform:x64
+/optimize+
+/debug-
+/nostdlib
+/noconfig
+/reference:"C:/Program Files (x86)/Reference Assemblies/Microsoft/Framework/.NETFramework/v4.8/mscorlib.dll"
+/reference:"C:/Program Files (x86)/Reference Assemblies/Microsoft/Framework/.NETFramework/v4.8/System.dll"
+/reference:"C:/Program Files (x86)/Reference Assemblies/Microsoft/Framework/.NETFramework/v4.8/System.Core.dll"
+/reference:"C:/Program Files (x86)/Reference Assemblies/Microsoft/Framework/.NETFramework/v4.8/System.Windows.Forms.dll"
+/reference:"C:/Program Files (x86)/Reference Assemblies/Microsoft/Framework/.NETFramework/v4.8/System.Drawing.dll"
+/reference:"C:/Program Files (x86)/Reference Assemblies/Microsoft/Framework/.NETFramework/v4.8/System.Runtime.Serialization.dll"
+/reference:"C:/Program Files (x86)/Reference Assemblies/Microsoft/Framework/.NETFramework/v4.8/System.Xml.dll"
+/win32manifest:app.manifest
+/win32icon:icon.ico
+src\Native.cs
+src\VirtualKeys.cs
+src\KeyboardHook.cs
+src\HotkeyEngine.cs
+src\TrayCatalog.cs
+src\SettingsStore.cs
+src\MainForm.cs
+src\AboutForm.cs
+src\HotkeyForm.cs
+src\Cli.cs
+src\SelfTest.cs
+src\Program.cs
