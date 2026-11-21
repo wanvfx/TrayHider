@@ -12,6 +12,10 @@ namespace TrayHider
     {
         private const string RunKey = @"Software\Microsoft\Windows\CurrentVersion\Run";
         private static readonly uint SelfPid = (uint)Process.GetCurrentProcess().Id;
+        // 开机后一段时间内用更快的扫描频率，尽快把「已隐藏」的图标藏掉，避免逐个闪现。
+        private const int NormalScanInterval = 2500;  // 稳定期扫描间隔（毫秒）
+        private const int BoostScanInterval = 350;    // 开机快速阶段扫描间隔（毫秒）
+        private const int BoostDurationSeconds = 60;  // 开机快速阶段持续时长（秒）
 
         private HotkeyEngine hotkey;
         private bool hotkeyHookReady;
@@ -28,6 +32,8 @@ namespace TrayHider
         private Icon trayIcon = null;
         private string lastSignature = "";
         private bool forceClose;
+        private bool initialized;
+        private DateTime boostUntil = DateTime.MinValue;
         private List<TrayItem> lastItems = new List<TrayItem>();
 
         public MainForm(Settings settings)
@@ -39,7 +45,7 @@ namespace TrayHider
                 settings.HideSelfIcon = false;
             // 是否开机自启以注册表为准。
             startHidden = IsAutoStart() && settings.MinimizeToTrayOnStart;
-            timer.Interval = 2500;
+            timer.Interval = NormalScanInterval;
             Text = "TrayHider-托盘图标隐藏工具";
             Icon = CreateAppIcon();
             Size = new Size(1000, 620);
@@ -260,8 +266,27 @@ namespace TrayHider
 
         private void MainForm_Load(object sender, EventArgs e)
         {
+            Initialize();
+        }
+
+        /// <summary>
+        /// 启动扫描与定时器、注册快捷键。放在 OnHandleCreated 里执行而不是 Form.Load，
+        /// 是因为开机隐藏启动时窗口从不 Show，Load 根本不会触发；而句柄只要创建（即使隐藏）
+        /// 就会触发 OnHandleCreated，这样开机后扫描隐藏依然生效。
+        /// </summary>
+        private void Initialize()
+        {
+            if (initialized) return;
+            initialized = true;
+
             ScanAndRefresh(true);
-            timer.Tick += delegate { ScanAndRefresh(false); };
+            timer.Tick += OnTimerTick;
+            // 只有配置了隐藏规则时才进入开机快速扫描，没有规则时直接按正常频率，避免白耗 CPU。
+            if (settings.Hidden.Count > 0)
+            {
+                timer.Interval = BoostScanInterval;
+                boostUntil = DateTime.UtcNow.AddSeconds(BoostDurationSeconds);
+            }
             timer.Start();
             ApplyHotkey();
             if (tray != null) tray.Visible = !settings.HideSelfIcon;
@@ -272,6 +297,14 @@ namespace TrayHider
                 selfCheck.Tick += delegate { selfCheck.Stop(); CheckSelfIcon(); };
                 selfCheck.Start();
             }
+        }
+
+        private void OnTimerTick(object sender, EventArgs e)
+        {
+            ScanAndRefresh(false);
+            // 开机快速阶段结束，回到正常频率，减少常驻时的 CPU 占用。
+            if (DateTime.UtcNow >= boostUntil && timer.Interval != NormalScanInterval)
+                timer.Interval = NormalScanInterval;
         }
 
         protected override void SetVisibleCore(bool value)
@@ -291,7 +324,7 @@ namespace TrayHider
         protected override void OnHandleCreated(EventArgs e)
         {
             base.OnHandleCreated(e);
-            ApplyHotkey();
+            Initialize();
         }
 
         protected override void OnHandleDestroyed(EventArgs e)
