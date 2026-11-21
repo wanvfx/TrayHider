@@ -1,5 +1,4 @@
 using System;
-using System.Diagnostics;
 using System.IO;
 using System.Text;
 using System.Threading;
@@ -74,8 +73,6 @@ namespace TrayHider
             return 0;
         }
 
-        public static uint SelfPid { get { return (uint)Process.GetCurrentProcess().Id; } }
-
         private static int ShowAbout()
         {
             using (var form = new AboutForm())
@@ -92,15 +89,9 @@ namespace TrayHider
             using (var form = new HotkeyForm(settings))
             {
                 form.StartPosition = FormStartPosition.CenterScreen;
-                if (form.ShowDialog() == DialogResult.OK) ApplyHotkeyAfterDialog(settings);
+                form.ShowDialog();
             }
             return 0;
-        }
-
-        private static void ApplyHotkeyAfterDialog(Settings settings)
-        {
-            // The dialog already persisted the settings; nothing else to do here,
-            // but keep the entry point symmetric with the GUI.
         }
     }
 }

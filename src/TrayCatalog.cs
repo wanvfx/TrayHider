@@ -35,6 +35,8 @@ namespace TrayHider
         }
 
         internal byte[] snapshot;
+        // 保留对流的引用：Image.FromStream 要求流在图片生命周期内不被回收，
+        // 否则个别系统上图标会渲染失败。
         MemoryStream imageStream;
         Image image;
 

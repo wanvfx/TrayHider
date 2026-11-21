@@ -16,6 +16,7 @@
 /win32icon:icon.ico
 src\Native.cs
 src\AssemblyInfo.cs
+src\BuildInfo.cs
 src\OSInfo.cs
 src\Win10Tray.cs
 src\VirtualKeys.cs

@@ -50,8 +50,6 @@ namespace TrayHider
         [DataMember] public int Version { get; set; }
         [DataMember] public List<IconRule> Hidden { get; set; }
         [DataMember] public List<IconRule> Recovery { get; set; }
-        [DataMember] public bool AutoStart { get; set; }
-        [DataMember] public bool CloseToTray { get; set; }
         [DataMember] public bool MinimizeToTrayOnStart { get; set; }
         [DataMember] public bool HideSelfIcon { get; set; }
         [DataMember] public bool ScanOverflow { get; set; }
@@ -67,7 +65,6 @@ namespace TrayHider
             Version = 1;
             Hidden = new List<IconRule>();
             Recovery = new List<IconRule>();
-            CloseToTray = true;
             MinimizeToTrayOnStart = true;
             HideSelfIcon = false;
             ScanOverflow = false;

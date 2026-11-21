@@ -7,7 +7,7 @@ namespace TrayHider
     internal sealed class AboutForm : Form
     {
         private const string Description =
-            "TrayHider v1.0.2\r\n" +
+            "TrayHider v" + BuildInfo.Version + "\r\n" +
             "作者：wanvfx\r\n" +
             "\r\n" +
             "支持平台\r\n" +
@@ -50,7 +50,7 @@ namespace TrayHider
             "  也可以用下拉框手动逐个添加。支持不同键、不同次数，例如 T→T→NumLock、\r\n" +
             "  A→B→B→C，并可设置整段序列的时间窗口。NumLock、F10 等任意键都可以用。\r\n" +
             "\r\n" +
-            "“选项 → 隐藏本工具自己的托盘图标”可以把自己的托盘图标也隐藏掉，让托盘更干净。\r\n" +
+            "“选项 → 隐藏本工具托盘”可以把自己的托盘图标也隐藏掉，让托盘更干净。\r\n" +
             "被隐藏的图标不会出现在「显示隐藏的图标」溢出窗口里，所以隐藏自身图标后\r\n" +
             "请用快捷键呼出主窗口，或重新运行本程序。\r\n" +
             "\r\n" +

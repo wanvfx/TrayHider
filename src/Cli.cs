@@ -262,7 +262,7 @@ namespace TrayHider
         public static int RunHelp()
         {
             Attach();
-            Say("TrayHider - 托盘图标隐藏工具 v1.0.2");
+            Say("TrayHider - 托盘图标隐藏工具 v" + BuildInfo.Version);
             Say("  TrayHider                  启动图形界面（常驻托盘）");
             Say("  TrayHider --list           列出所有活动托盘图标");
             Say("  TrayHider --hide <关键字>  按进程名 / 提示文字 / 路径关键字隐藏图标");

@@ -106,17 +106,6 @@ namespace TrayHider
         public static extern bool WriteConsoleW(IntPtr consoleOutput, string buffer,
             uint charsToWrite, out uint charsWritten, IntPtr reserved);
 
-        [DllImport("kernel32.dll", SetLastError = true)] public static extern bool AllocConsole();
-
-        [DllImport("user32.dll", SetLastError = true)]
-        public static extern bool RegisterHotKey(IntPtr hWnd, int id, uint fsModifiers, uint vk);
-
-        [DllImport("user32.dll")]
-        public static extern bool UnregisterHotKey(IntPtr hWnd, int id);
-
-        [DllImport("user32.dll")]
-        public static extern short GetAsyncKeyState(int virtualKey);
-
         [DllImport("user32.dll", SetLastError = true)]
         public static extern IntPtr FindWindow(string className, string windowName);
 

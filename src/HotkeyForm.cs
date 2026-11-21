@@ -350,6 +350,16 @@ namespace TrayHider
 
         private void SaveAndClose()
         {
+            // 已隐藏本工具托盘时，快捷键是唯一的逃生通道，不允许关闭。
+            if (!enable.Checked && settings.HideSelfIcon)
+            {
+                MessageBox.Show(this,
+                    "已隐藏本工具托盘，不能关闭快捷键。\n\n" +
+                    "否则窗口一旦隐藏将无法找回工具。请先恢复托盘图标（取消「选项 → 隐藏本工具托盘」），再关闭快捷键。",
+                    "快捷键设置", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
             settings.HotkeyEnabled = enable.Checked;
             settings.HotkeyMode = modeCombo.Checked ? 0 : 1;
 

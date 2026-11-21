@@ -33,7 +33,12 @@ namespace TrayHider
         public MainForm(Settings settings)
         {
             this.settings = settings;
-            startHidden = settings.AutoStart && settings.MinimizeToTrayOnStart;
+            // 归一化：隐藏自身托盘必须以快捷键为逃生通道。
+            // 历史配置若「隐藏了自身」却没开快捷键，这里把关掉，避免窗口隐藏后无法找回。
+            if (settings.HideSelfIcon && !settings.HotkeyEnabled)
+                settings.HideSelfIcon = false;
+            // 是否开机自启以注册表为准。
+            startHidden = IsAutoStart() && settings.MinimizeToTrayOnStart;
             timer.Interval = 2500;
             Text = "TrayHider-托盘图标隐藏工具";
             Icon = CreateAppIcon();
@@ -74,21 +79,8 @@ namespace TrayHider
             file.DropDownItems.Add("退出(&X)", null, delegate { ForceExit(); });
 
             var options = new ToolStripMenuItem("选项(&T)");
-            var autoStart = new ToolStripMenuItem("登录 Windows 时自动启动(&L)") { CheckOnClick = true };
-            autoStart.Checked = IsAutoStart();
-            autoStart.CheckedChanged += delegate { SetAutoStart(autoStart.Checked); };
-            var closeToTray = new ToolStripMenuItem("关闭窗口时缩到托盘(&C)") { CheckOnClick = true };
-            closeToTray.Checked = settings.CloseToTray;
-            closeToTray.CheckedChanged += delegate { settings.CloseToTray = closeToTray.Checked; };
-            options.DropDownItems.Add(autoStart);
-            var minimizeOnStart = new ToolStripMenuItem("开机启动时最小化到托盘(&M)") { CheckOnClick = true };
-            minimizeOnStart.Checked = settings.MinimizeToTrayOnStart;
-            minimizeOnStart.CheckedChanged += delegate
-            {
-                settings.MinimizeToTrayOnStart = minimizeOnStart.Checked;
-                SettingsStore.Save(settings);
-            };
-            options.DropDownItems.Add(closeToTray);
+
+            // 1. 快捷键设置
             var hotkey = new ToolStripMenuItem("快捷键设置(&K)...");
             hotkey.Click += delegate
             {
@@ -97,12 +89,46 @@ namespace TrayHider
                     if (form.ShowDialog(this) == DialogResult.OK) ApplyHotkey();
                 }
             };
-            var hideSelf = new ToolStripMenuItem("隐藏本工具自己的托盘图标(&S)") { CheckOnClick = true };
-            hideSelf.Checked = settings.HideSelfIcon;
-            hideSelf.CheckedChanged += delegate { SetHideSelfIcon(hideSelf.Checked); };
             options.DropDownItems.Add(hotkey);
+
+            // 2. 跟随开机启动
+            var autoStart = new ToolStripMenuItem("跟随开机启动(&A)") { CheckOnClick = true };
+            autoStart.Checked = IsAutoStart();
+
+            // 3. 开机启动隐藏窗口到托盘（仅当“跟随开机启动”勾选时显示）
+            var minimizeOnStart = new ToolStripMenuItem("开机启动隐藏窗口到托盘(&M)") { CheckOnClick = true };
+            minimizeOnStart.Checked = settings.MinimizeToTrayOnStart;
+            minimizeOnStart.Visible = autoStart.Checked;
+            minimizeOnStart.CheckedChanged += delegate
+            {
+                settings.MinimizeToTrayOnStart = minimizeOnStart.Checked;
+                SettingsStore.Save(settings);
+            };
+
+            autoStart.CheckedChanged += delegate
+            {
+                SetAutoStart(autoStart.Checked);
+                minimizeOnStart.Visible = autoStart.Checked;
+            };
+
+            options.DropDownItems.Add(autoStart);
+            options.DropDownItems.Add(minimizeOnStart);
+
+            // 4. 隐藏本工具托盘（要求已启用快捷键，否则窗口隐藏后将无路找回）
+            var hideSelf = new ToolStripMenuItem("隐藏本工具托盘(&S)") { CheckOnClick = true };
+            hideSelf.Checked = settings.HideSelfIcon;
+            hideSelf.CheckedChanged += delegate
+            {
+                if (hideSelf.Checked)
+                {
+                    if (!SetHideSelfIcon(true)) hideSelf.Checked = false;
+                }
+                else SetHideSelfIcon(false);
+            };
             options.DropDownItems.Add(hideSelf);
-            var scanOverflow = new ToolStripMenuItem("扫描时包含溢出区图标（会弹出溢出窗口）(&O)") { CheckOnClick = true };
+
+            // 5. 扫描时包含溢出区图标
+            var scanOverflow = new ToolStripMenuItem("扫描时包含溢出区图标(&O)") { CheckOnClick = true };
             scanOverflow.Checked = settings.ScanOverflow;
             scanOverflow.CheckedChanged += delegate
             {
@@ -254,6 +280,9 @@ namespace TrayHider
             if (startHidden)
             {
                 startHidden = false;
+                // 窗口虽然不可见，句柄仍要创建：否则 Load / OnHandleCreated 不触发，
+                // 全局快捷键注册不上，用户就没有把窗口呼出来的逃生通道了。
+                if (!IsHandleCreated) _ = Handle;
                 value = false;
             }
             base.SetVisibleCore(value);
@@ -336,23 +365,29 @@ namespace TrayHider
             catch { }
         }
 
-        private void SetHideSelfIcon(bool hide)
+        private bool SetHideSelfIcon(bool hide)
         {
+            // 隐藏自身托盘图标必须以快捷键为逃生通道，否则窗口一旦隐藏就再也找不回来。
+            if (hide && !settings.HotkeyEnabled)
+            {
+                MessageBox.Show(this,
+                    "需要先启用快捷键才能隐藏本工具托盘。\n\n" +
+                    "否则窗口一旦隐藏（点 × 或开机隐藏启动），将没有任何方式找回工具。\n" +
+                    "请先到「选项 → 快捷键设置」启用快捷键，再勾选本项。",
+                    "TrayHider", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return false;
+            }
+
             settings.HideSelfIcon = hide;
             SettingsStore.Save(settings);
             if (tray != null) tray.Visible = !hide;
-            if (!hide) return;
-            if (!settings.HotkeyEnabled)
+            if (hide)
                 MessageBox.Show(this,
-                    "已隐藏本工具自己的托盘图标，且未启用快捷键。\n" +
-                    "此时托盘里将找不到本工具，只能重新运行程序才能打开主窗口。",
-                    "TrayHider", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-            else
-                MessageBox.Show(this,
-                    "已隐藏本工具自己的托盘图标。\n\n" +
+                    "已隐藏本工具托盘。\n\n" +
                     "按你设置的快捷键可随时呼出主窗口；\n" +
-                    "想恢复托盘图标，请取消“选项 → 隐藏本工具自己的托盘图标”。",
+                    "想恢复托盘图标，请取消“选项 → 隐藏本工具托盘”。",
                     "TrayHider", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            return true;
         }
 
         private void ScanAndRefresh(bool force)
@@ -532,7 +567,9 @@ namespace TrayHider
 
         private void MainForm_FormClosing(object sender, FormClosingEventArgs e)
         {
-            if (!forceClose && settings.CloseToTray && e.CloseReason == CloseReason.UserClosing)
+            // 点窗口右上角 ×（或 Alt+F4）只缩到托盘、不退出；
+            // 真正退出走托盘右键「退出」或菜单「操作 → 退出」。
+            if (!forceClose && e.CloseReason == CloseReason.UserClosing)
             {
                 e.Cancel = true;
                 Hide();
@@ -556,7 +593,7 @@ namespace TrayHider
             catch { return false; }
         }
 
-        private static void SetAutoStart(bool enable)
+        private void SetAutoStart(bool enable)
         {
             try
             {
