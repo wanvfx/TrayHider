@@ -505,7 +505,12 @@ namespace TrayHider
 
         private void RestoreAll()
         {
-            int changed = RuleEngine.RestoreAll(settings, lastItems);
+            // Win10 的溢出窗口只在被点开后才会创建；恢复全部时先把它打开，
+            // 否则溢出区里的图标（很可能就是旧版本隐藏的那些）枚举不到。
+            if (!OSInfo.IsWindows11) Win10Tray.ForceOverflowRefresh();
+            var items = TrayCatalog.Scan(SelfPid, !OSInfo.IsWindows11);
+            int changed = RuleEngine.RestoreAll(settings, items);
+            lastItems = items;
             ScanAndRefresh(true);
             MessageBox.Show(this, "已恢复 " + changed + " 个图标。", "TrayHider",
                 MessageBoxButtons.OK, MessageBoxIcon.Information);

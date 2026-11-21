@@ -10,7 +10,10 @@
 实现完全不同，本工具对 Win11 和 Win10 各走一条原生路径，见下文「工作原理」。
 
 **随时可恢复**：隐藏只是改变显示状态，在主窗口点「恢复选中 / 恢复全部」，
-或命令行 `TrayHider.exe --show <关键字>`，图标就会回到托盘。
+或命令行 `TrayHider.exe --show <关键字>` / `TrayHider.exe --restore-all`，图标就会回到托盘。
+
+> 「恢复全部」会把**当前所有处于隐藏状态**的图标都恢复（不管是不是本工具隐藏的），
+> 所以用旧版本隐藏的图标也能一把救回来。
 
 - 纯 Win32 + C#，不注入 Explorer、不修改其他软件、不需要管理员权限。
 - 快捷键完全可自定义：组合键，或**按键序列**（可录制，任意键、任意次数）。
@@ -26,6 +29,7 @@ TrayHider.exe                启动图形界面（常驻托盘）
 TrayHider.exe --list         列出所有活动托盘图标
 TrayHider.exe --hide 微信     按进程名 / 提示文字 / 路径关键字隐藏
 TrayHider.exe --show 微信     恢复显示
+TrayHider.exe --restore-all   恢复当前所有处于隐藏状态的图标（含旧版本隐藏的）
 TrayHider.exe --about        关于（含原理说明）
 TrayHider.exe --hotkey       快捷键设置面板
 TrayHider.exe --hotkey-test  自检快捷键触发逻辑

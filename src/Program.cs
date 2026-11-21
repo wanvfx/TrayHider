@@ -50,6 +50,7 @@ namespace TrayHider
                     case "--list": return Cli.RunList(args);
                     case "--hide": return Cli.RunHide(args, true);
                     case "--show": return Cli.RunHide(args, false);
+                    case "--restore-all": return Cli.RunRestoreAll();
                     case "--help":
                     case "-h":
                     case "/?": return Cli.RunHelp();

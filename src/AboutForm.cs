@@ -7,7 +7,7 @@ namespace TrayHider
     internal sealed class AboutForm : Form
     {
         private const string Description =
-            "TrayHider v1.0.1\r\n" +
+            "TrayHider v1.0.2\r\n" +
             "作者：wanvfx\r\n" +
             "\r\n" +
             "支持平台\r\n" +

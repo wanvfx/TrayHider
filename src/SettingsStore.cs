@@ -161,11 +161,9 @@ namespace TrayHider
             int changed = 0;
             foreach (var item in only)
             {
-                if (!settings.Recovery.Exists(delegate(IconRule r) { return r.Matches(item); })) continue;
-                if (item.State == 1)
-                {
-                    item.State = TrayApi.SetHidden(item, false) ? 0 : item.State;
-                }
+                // 不依赖 Recovery 记录：只要当前是隐藏状态就恢复。
+                // 否则用旧版本隐藏的、或删过设置文件后，恢复会被静默跳过。
+                if (item.State == 1 && TrayApi.SetHidden(item, false)) item.State = 0;
                 if (item.State == 0) changed++;
             }
             RemoveMatches(settings.Hidden, only);
@@ -186,12 +184,10 @@ namespace TrayHider
         public static int RestoreAll(Settings settings, List<TrayItem> items)
         {
             int changed = 0;
+            // 同上：把所有当前处于隐藏状态的图标都恢复，不看 Recovery 记录。
             foreach (var item in items)
             {
-                if (item.State == 1 && settings.Recovery.Exists(delegate(IconRule r) { return r.Matches(item); }))
-                {
-                    if (TrayApi.SetHidden(item, false)) { item.State = 0; changed++; }
-                }
+                if (item.State == 1 && TrayApi.SetHidden(item, false)) { item.State = 0; changed++; }
             }
             settings.Hidden.Clear();
             settings.Recovery.Clear();

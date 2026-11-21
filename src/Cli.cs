@@ -228,6 +228,21 @@ namespace TrayHider
             return fired > 0 ? 0 : 1;
         }
 
+        /// <summary>把所有当前处于隐藏状态的图标全部恢复（用于救回旧版本隐藏的图标）。</summary>
+        public static int RunRestoreAll()
+        {
+            Attach();
+            var settings = SettingsStore.Load();
+            // Win10 的溢出窗口只在被点开后才会创建；恢复全部时必须先把它打开，
+            // 否则溢出区里的图标（很可能就是旧版本隐藏的那些）根本枚举不到。
+            if (!OSInfo.IsWindows11) Win10Tray.ForceOverflowRefresh();
+            var items = TrayCatalog.Scan(SelfPid, !OSInfo.IsWindows11);
+            int changed = RuleEngine.RestoreAll(settings, items);
+            Say("已恢复 " + changed + " 个图标（当前处于隐藏状态的全部图标）");
+            Flush();
+            return 0;
+        }
+
         /// <summary>探测 Windows 10 传统托盘工具栏，用于诊断（任何系统上都可运行）。</summary>
         public static int RunWin10Probe()
         {
@@ -247,11 +262,12 @@ namespace TrayHider
         public static int RunHelp()
         {
             Attach();
-            Say("TrayHider - 托盘图标隐藏工具 v1.0.1");
+            Say("TrayHider - 托盘图标隐藏工具 v1.0.2");
             Say("  TrayHider                  启动图形界面（常驻托盘）");
             Say("  TrayHider --list           列出所有活动托盘图标");
             Say("  TrayHider --hide <关键字>  按进程名 / 提示文字 / 路径关键字隐藏图标");
             Say("  TrayHider --show <关键字>  恢复已隐藏的图标");
+            Say("  TrayHider --restore-all    恢复当前所有处于隐藏状态的图标（救回旧版本隐藏的图标）");
             Say("  TrayHider --selftest       自检：创建测试图标并验证隐藏与恢复");
             Say("  TrayHider --about          打开“关于”对话框");
             Say("  TrayHider --hotkey         打开“快捷键设置”面板");

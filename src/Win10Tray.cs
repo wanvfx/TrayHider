@@ -221,25 +221,36 @@ namespace TrayHider
 
         public static int GetState(TrayItem item)
         {
-            if (TryFindButton(item.Toolbar, item.Window, item.Id, out _, out byte state))
+            if (TryFindButton(item.Toolbar, item.Window, item.Id, item.Tooltip, out _, out byte state))
                 return (state & 8) != 0 ? 1 : 0;   // TBSTATE_HIDDEN
             return 1;
         }
 
         public static bool SetHidden(TrayItem item, bool hidden)
         {
-            if (!TryFindButton(item.Toolbar, item.Window, item.Id, out uint commandId, out _)) return false;
-            item.Command = (int)commandId;
-            Native.SendMessage(item.Toolbar, TB_HIDEBUTTON, (IntPtr)commandId, (IntPtr)(hidden ? 1 : 0));
-            Native.SendMessage(item.Toolbar, TB_AUTOSIZE, IntPtr.Zero, IntPtr.Zero);
-            return true;
+            // 发完 TB_HIDEBUTTON 后回读状态确认，失败重试一次。
+            for (int attempt = 0; attempt < 2; attempt++)
+            {
+                if (!TryFindButton(item.Toolbar, item.Window, item.Id, item.Tooltip,
+                                   out uint commandId, out _))
+                    return false;
+                item.Command = (int)commandId;
+                Native.SendMessage(item.Toolbar, TB_HIDEBUTTON, (IntPtr)commandId, (IntPtr)(hidden ? 1 : 0));
+                Native.SendMessage(item.Toolbar, TB_AUTOSIZE, IntPtr.Zero, IntPtr.Zero);
+
+                if (TryFindButton(item.Toolbar, item.Window, item.Id, item.Tooltip, out _, out byte after))
+                    if (((after & 8) != 0) == hidden) return true;
+            }
+            return false;
         }
 
         /// <summary>
         /// 按 (窗口句柄, uID) 重新定位按钮：工具栏重建后 commandId 会变，
-        /// 直接用扫描时缓存的 commandId 可能点错按钮。
+        /// 直接用扫描时缓存的 commandId 可能点错按钮。若同一 (窗口, uID) 有多个按钮，
+        /// 再用提示文字进一步区分。
         /// </summary>
-        public static bool TryFindButton(IntPtr toolbar, IntPtr window, uint id, out uint commandId, out byte buttonState)
+        public static bool TryFindButton(IntPtr toolbar, IntPtr window, uint id, string tooltip,
+                                         out uint commandId, out byte buttonState)
         {
             commandId = 0;
             buttonState = 0;
@@ -254,6 +265,8 @@ namespace TrayHider
                 try
                 {
                     int count = Native.SendMessage(toolbar, TB_BUTTONCOUNT, IntPtr.Zero, IntPtr.Zero).ToInt32();
+                    var candidates = new List<KeyValuePair<uint, byte>>();
+                    var tips = new List<string>();
                     for (int i = 0; i < count; i++)
                     {
                         UIntPtr read;
@@ -270,19 +283,28 @@ namespace TrayHider
                         data = new byte[16];
                         if (!Native.ReadProcessMemory(process, (IntPtr)dwData, data, (UIntPtr)data.Length, out read) ||
                             read.ToUInt64() < 12) continue;
-                        if ((IntPtr)BitConverter.ToInt64(data, 0) == window &&
-                            BitConverter.ToUInt32(data, 8) == id)
-                        {
-                            commandId = (uint)BitConverter.ToInt32(raw, 4);
-                            buttonState = raw[8];
-                            return true;
-                        }
+                        if ((IntPtr)BitConverter.ToInt64(data, 0) != window ||
+                            BitConverter.ToUInt32(data, 8) != id)
+                            continue;
+
+                        candidates.Add(new KeyValuePair<uint, byte>((uint)BitConverter.ToInt32(raw, 4), raw[8]));
+                        tips.Add(ReadTooltip(process, (IntPtr)BitConverter.ToInt64(raw, 24)));
                     }
+                    if (candidates.Count == 0) return false;
+
+                    // 同一 (窗口, uID) 有多个按钮时，用提示文字进一步区分。
+                    int chosen = 0;
+                    if (candidates.Count > 1 && !string.IsNullOrEmpty(tooltip))
+                        for (int i = 0; i < tips.Count; i++)
+                            if (tips[i] == tooltip) { chosen = i; break; }
+
+                    commandId = candidates[chosen].Key;
+                    buttonState = candidates[chosen].Value;
+                    return true;
                 }
                 finally { Native.VirtualFreeEx(process, buffer, UIntPtr.Zero, MEM_FREE); }
             }
             finally { Native.CloseHandle(process); }
-            return false;
         }
 
         /// <summary>
