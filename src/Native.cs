@@ -80,6 +80,8 @@ namespace TrayHider
 
         [DllImport("user32.dll")] public static extern bool IsWindow(IntPtr hWnd);
 
+        [DllImport("user32.dll")] public static extern bool IsWindowVisible(IntPtr hWnd);
+
         [DllImport("user32.dll", SetLastError = true)] public static extern bool DestroyIcon(IntPtr icon);
 
         [DllImport("kernel32.dll", SetLastError = true)]
@@ -93,6 +95,17 @@ namespace TrayHider
 
         [DllImport("kernel32.dll", SetLastError = true)] public static extern bool AttachConsole(uint processId);
 
+        [DllImport("kernel32.dll")] public static extern uint GetConsoleOutputCP();
+
+        [DllImport("kernel32.dll", SetLastError = true)]
+        public static extern IntPtr GetStdHandle(int index);
+
+        // 必须显式指定 Unicode：DllImport 默认按 ANSI 封送 string，
+        // 而 WriteConsoleW 的缓冲是 UTF-16，否则每个字节会被当成一个字符。
+        [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
+        public static extern bool WriteConsoleW(IntPtr consoleOutput, string buffer,
+            uint charsToWrite, out uint charsWritten, IntPtr reserved);
+
         [DllImport("kernel32.dll", SetLastError = true)] public static extern bool AllocConsole();
 
         [DllImport("user32.dll", SetLastError = true)]
@@ -103,6 +116,21 @@ namespace TrayHider
 
         [DllImport("user32.dll")]
         public static extern short GetAsyncKeyState(int virtualKey);
+
+        [DllImport("user32.dll", SetLastError = true)]
+        public static extern IntPtr FindWindow(string className, string windowName);
+
+        [DllImport("user32.dll")]
+        public static extern IntPtr SendMessage(IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam);
+
+        [DllImport("kernel32.dll", SetLastError = true)]
+        public static extern IntPtr VirtualAllocEx(IntPtr process, IntPtr address, UIntPtr size, uint type, uint protect);
+
+        [DllImport("kernel32.dll", SetLastError = true)]
+        public static extern bool VirtualFreeEx(IntPtr process, IntPtr address, UIntPtr size, uint type);
+
+        [DllImport("kernel32.dll", SetLastError = true)]
+        public static extern bool ReadProcessMemory(IntPtr process, IntPtr address, byte[] buffer, UIntPtr size, out UIntPtr read);
 
         public static string WindowClass(IntPtr hWnd)
         {

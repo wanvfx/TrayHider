@@ -15,6 +15,9 @@
 /win32manifest:app.manifest
 /win32icon:icon.ico
 src\Native.cs
+src\AssemblyInfo.cs
+src\OSInfo.cs
+src\Win10Tray.cs
 src\VirtualKeys.cs
 src\KeyboardHook.cs
 src\HotkeyEngine.cs

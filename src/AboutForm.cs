@@ -7,14 +7,21 @@ namespace TrayHider
     internal sealed class AboutForm : Form
     {
         private const string Description =
-            "TrayHider 1.0（精简版）\r\n" +
+            "TrayHider v1.0.1\r\n" +
             "作者：wanvfx\r\n" +
             "\r\n" +
-            "功能\r\n" +
-            "隐藏 Windows 11 通知区域（托盘）里的指定图标，被隐藏的程序继续在后台正常运行。\r\n" +
+            "支持平台\r\n" +
+            "Windows 10 / Windows 11。不支持 Windows 7 及更早版本。\r\n" +
             "\r\n" +
-            "工作原理\r\n" +
-            "Windows 11 会把每个托盘图标的记录放在注册表\r\n" +
+            "功能\r\n" +
+            "隐藏通知区域（托盘）里指定的图标，被隐藏的程序继续在后台正常运行。\r\n" +
+            "\r\n" +
+            "随时可恢复\r\n" +
+            "隐藏只是改变显示状态：在主窗口点「恢复选中 / 恢复全部」，或命令行\r\n" +
+            "TrayHider.exe --show <关键字>，图标就会回到托盘。\r\n" +
+            "\r\n" +
+            "工作原理（Windows 11）\r\n" +
+            "Windows 11 把每个托盘图标的记录放在注册表\r\n" +
             "HKCU\\Control Panel\\NotifyIconSettings\r\n" +
             "其中包含程序路径（ExecutablePath）、UID / IconGuid、提示文字和图标快照。\r\n" +
             "\r\n" +
@@ -26,8 +33,14 @@ namespace TrayHider
             "「显示隐藏的图标」溢出窗口中消失，而图标所属的程序本身完全不受影响\r\n" +
             "（不结束进程、不修改其他软件、不需要管理员权限）。\r\n" +
             "\r\n" +
-            "隐藏规则会保存到设置文件并在后台定时重新应用，因此程序重启、或资源管理器\r\n" +
-            "重建托盘之后，隐藏状态依然保持。\r\n" +
+            "工作原理（Windows 10）\r\n" +
+            "Windows 10 的通知区域是传统的 Explorer 工具栏（ToolbarWindow32），\r\n" +
+            "每个图标是工具栏上的一个按钮。本工具读取这些按钮及其提示文字，\r\n" +
+            "用 TB_HIDEBUTTON 把指定按钮移入「显示隐藏的图标」溢出区，\r\n" +
+            "这是 Windows 10 的原生隐藏方式，同样不结束进程、不注入 Explorer。\r\n" +
+            "\r\n" +
+            "两台系统的隐藏规则都保存在设置文件并在后台定时重新应用，因此程序重启、\r\n" +
+            "或资源管理器重建托盘之后，隐藏状态依然保持。\r\n" +
             "\r\n" +
             "快捷键\r\n" +
             "在“选项 → 快捷键设置”里自定义。按一次呼出主窗口，再按一次隐藏。\r\n" +

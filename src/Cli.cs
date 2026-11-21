@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Text;
 
 namespace TrayHider
 {
@@ -12,22 +13,71 @@ namespace TrayHider
             Path.Combine(Path.GetTempPath(), "TrayHider_cli.txt");
         private static readonly List<string> Lines = new List<string>();
         private static readonly uint SelfPid = (uint)Process.GetCurrentProcess().Id;
+        private static int consoleCodepage;
+        private static bool consoleAttached;
+
+        /// <summary>
+        /// 挂到父控制台，并按控制台的输出代码页设置编码——否则中文在 cmd 里会是乱码。
+        /// </summary>
+        private static void Attach()
+        {
+            if (consoleAttached) return;
+            consoleAttached = true;
+            Native.AttachConsole(unchecked((uint)-1));
+            try
+            {
+                int cp = (int)Native.GetConsoleOutputCP();
+                if (cp > 0)
+                {
+                    consoleCodepage = cp;
+                    Console.OutputEncoding = Encoding.GetEncoding(cp);
+                }
+            }
+            catch { }
+        }
+
+        /// <summary>
+        /// 优先用 WriteConsoleW 直接写 Unicode：控制台显示什么代码页都不会乱码。
+        /// 只在句柄不可用（被重定向到文件/管道）时回退到 Console.WriteLine。
+        /// </summary>
+        private static void WriteLine(string line)
+        {
+            IntPtr handle = Native.GetStdHandle(-11); // STD_OUTPUT_HANDLE
+            if (handle != IntPtr.Zero && handle != new IntPtr(-1))
+            {
+                uint written;
+                string text = line + "\r\n";
+                if (Native.WriteConsoleW(handle, text, (uint)text.Length, out written, IntPtr.Zero))
+                    return;
+            }
+            Console.WriteLine(line);
+        }
 
         private static void Say(string line)
         {
-            Console.WriteLine(line);
+            WriteLine(line);
             Lines.Add(line);
         }
 
         private static void Flush()
         {
-            try { File.WriteAllText(LogPath, string.Join(Environment.NewLine, Lines)); }
+            try
+            {
+                Encoding encoding;
+                try
+                {
+                    encoding = consoleCodepage == 65001 ? new UTF8Encoding(true)
+                                                       : Encoding.GetEncoding(consoleCodepage);
+                }
+                catch { encoding = new UTF8Encoding(true); }
+                File.WriteAllText(LogPath, string.Join(Environment.NewLine, Lines), encoding);
+            }
             catch { }
         }
 
         public static int RunList(string[] args)
         {
-            Native.AttachConsole(unchecked((uint)-1));
+            Attach();
             var items = TrayCatalog.Scan(SelfPid);
             Say("共 " + items.Count + " 个活动托盘图标:");
             foreach (var item in items)
@@ -40,7 +90,7 @@ namespace TrayHider
 
         public static int RunHide(string[] args, bool hide)
         {
-            Native.AttachConsole(unchecked((uint)-1));
+            Attach();
             if (args.Length < 2)
             {
                 Say("用法: TrayHider --" + (hide ? "hide" : "show") + " <进程名|提示文字|路径关键字>");
@@ -56,6 +106,18 @@ namespace TrayHider
                        TrayCatalog.ContainsIgnoreCase(x.Tooltip, match) ||
                        TrayCatalog.ContainsIgnoreCase(x.Name, match);
             });
+            if (hits.Count == 0)
+            {
+                // 可能图标在溢出区里：点开「显示隐藏的图标」再找一次（仅 Win10 路径有意义）。
+                Win10Tray.ForceOverflowRefresh();
+                items = TrayCatalog.Scan(SelfPid);
+                hits = items.FindAll(delegate(TrayItem x)
+                {
+                    return TrayCatalog.ContainsIgnoreCase(x.Path, match) ||
+                           TrayCatalog.ContainsIgnoreCase(x.Tooltip, match) ||
+                           TrayCatalog.ContainsIgnoreCase(x.Name, match);
+                });
+            }
             if (hits.Count == 0)
             {
                 Say("未找到匹配的托盘图标: " + match);
@@ -116,7 +178,7 @@ namespace TrayHider
         /// <summary>Deterministic check of the configured trigger, without synthetic input.</summary>
         public static int RunHotkeyTest()
         {
-            Native.AttachConsole(unchecked((uint)-1));
+            Attach();
             var settings = SettingsStore.Load();
             var engine = new HotkeyEngine
             {
@@ -166,9 +228,26 @@ namespace TrayHider
             return fired > 0 ? 0 : 1;
         }
 
+        /// <summary>探测 Windows 10 传统托盘工具栏，用于诊断（任何系统上都可运行）。</summary>
+        public static int RunWin10Probe()
+        {
+            Attach();
+            Say("Win10 托盘探测：");
+            Say("  主托盘 ToolbarWindow32  = 0x" + Win10Tray.FindNormalTrayWindow().ToInt64().ToString("X"));
+            Say("  溢出区 ToolbarWindow32  = 0x" + Win10Tray.FindOverflowTrayWindow().ToInt64().ToString("X"));
+            var items = Win10Tray.Scan(0, false);
+            Say("  枚举到 " + items.Count + " 个图标：");
+            foreach (var item in items)
+                Say("    [" + (item.State == 1 ? "已隐藏" : "显示中") + "] " + item.Name + " | " +
+                    item.Tooltip + " | " + item.Path + " | pid=" + item.Pid + " cmd=" + item.Command);
+            Flush();
+            return 0;
+        }
+
         public static int RunHelp()
-        {            Native.AttachConsole(unchecked((uint)-1));
-            Say("TrayHider - Windows 11 托盘图标隐藏工具（精简版）");
+        {
+            Attach();
+            Say("TrayHider - 托盘图标隐藏工具 v1.0.1");
             Say("  TrayHider                  启动图形界面（常驻托盘）");
             Say("  TrayHider --list           列出所有活动托盘图标");
             Say("  TrayHider --hide <关键字>  按进程名 / 提示文字 / 路径关键字隐藏图标");
@@ -177,6 +256,7 @@ namespace TrayHider
             Say("  TrayHider --about          打开“关于”对话框");
             Say("  TrayHider --hotkey         打开“快捷键设置”面板");
             Say("  TrayHider --hotkey-test    自检当前快捷键的触发逻辑");
+            Say("  TrayHider --win10-probe    探测 Win10 传统托盘工具栏（诊断用）");
             Flush();
             return 0;
         }

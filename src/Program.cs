@@ -1,5 +1,7 @@
 using System;
 using System.Diagnostics;
+using System.IO;
+using System.Text;
 using System.Threading;
 using System.Windows.Forms;
 
@@ -9,6 +11,29 @@ namespace TrayHider
     {
         [STAThread]
         private static int Main(string[] args)
+        {
+            try
+            {
+                return Run(args);
+            }
+            catch (Exception ex)
+            {
+                // 启动期异常会被这里接住并写日志，便于在别的机器上定位。
+                try
+                {
+                    File.WriteAllText(
+                        Path.Combine(Path.GetTempPath(), "TrayHider_startup.log"),
+                        ex.ToString(), Encoding.UTF8);
+                }
+                catch { }
+                MessageBox.Show("TrayHider 启动失败：\r\n\r\n" + ex + "\r\n\r\n日志: " +
+                                Path.Combine(Path.GetTempPath(), "TrayHider_startup.log"),
+                                "TrayHider", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                return 1;
+            }
+        }
+
+        private static int Run(string[] args)
         {
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
@@ -21,6 +46,7 @@ namespace TrayHider
                     case "--about": return ShowAbout();
                     case "--hotkey": return ShowHotkey();
                     case "--hotkey-test": return Cli.RunHotkeyTest();
+                    case "--win10-probe": return Cli.RunWin10Probe();
                     case "--list": return Cli.RunList(args);
                     case "--hide": return Cli.RunHide(args, true);
                     case "--show": return Cli.RunHide(args, false);

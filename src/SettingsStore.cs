@@ -54,6 +54,7 @@ namespace TrayHider
         [DataMember] public bool CloseToTray { get; set; }
         [DataMember] public bool MinimizeToTrayOnStart { get; set; }
         [DataMember] public bool HideSelfIcon { get; set; }
+        [DataMember] public bool ScanOverflow { get; set; }
         [DataMember] public bool HotkeyEnabled { get; set; }
         [DataMember] public int HotkeyMode { get; set; }
         [DataMember] public uint HotkeyModifiers { get; set; }
@@ -67,6 +68,9 @@ namespace TrayHider
             Hidden = new List<IconRule>();
             Recovery = new List<IconRule>();
             CloseToTray = true;
+            MinimizeToTrayOnStart = true;
+            HideSelfIcon = false;
+            ScanOverflow = false;
             HotkeyEnabled = true;
             HotkeyMode = 0;
             HotkeyModifiers = VirtualKeys.MOD_CONTROL | VirtualKeys.MOD_ALT;

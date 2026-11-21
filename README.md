@@ -1,10 +1,16 @@
 # TrayHider
 
-> Windows 11 托盘图标隐藏工具 · 作者 **wanvfx** · 开源（MIT）
+> Windows 10 / 11 托盘图标隐藏工具 · 作者 **wanvfx** · 开源（MIT）
 
-隐藏 Windows 11 通知区域（托盘）里的指定图标，**被隐藏的程序继续在后台正常运行**。
-单个 exe、约 75 KB，打开即用，不需要安装 .NET 运行时（直接跑在 Windows 10/11 自带的
+隐藏通知区域（托盘）里指定的图标，**被隐藏的程序继续在后台正常运行**。
+单个 exe、约 75 KB，打开即用，不需要安装 .NET 运行时（直接跑在 Windows 自带的
 .NET Framework 4.8 上）。
+
+**支持平台：Windows 10 / Windows 11**（不支持 Windows 7 及更早版本）。两台系统的托盘
+实现完全不同，本工具对 Win11 和 Win10 各走一条原生路径，见下文「工作原理」。
+
+**随时可恢复**：隐藏只是改变显示状态，在主窗口点「恢复选中 / 恢复全部」，
+或命令行 `TrayHider.exe --show <关键字>`，图标就会回到托盘。
 
 - 纯 Win32 + C#，不注入 Explorer、不修改其他软件、不需要管理员权限。
 - 快捷键完全可自定义：组合键，或**按键序列**（可录制，任意键、任意次数）。
@@ -19,15 +25,15 @@
 TrayHider.exe                启动图形界面（常驻托盘）
 TrayHider.exe --list         列出所有活动托盘图标
 TrayHider.exe --hide 微信     按进程名 / 提示文字 / 路径关键字隐藏
-TrayHider.exe --show 微信     恢复
+TrayHider.exe --show 微信     恢复显示
 TrayHider.exe --about        关于（含原理说明）
 TrayHider.exe --hotkey       快捷键设置面板
 TrayHider.exe --hotkey-test  自检快捷键触发逻辑
 TrayHider.exe --selftest     自检隐藏/恢复
 ```
 
-图形界面：列表中选中图标 → 「隐藏选中」；「选项」里可设置开机自启、关闭缩到托盘、
-隐藏本工具自己的托盘图标、以及快捷键。
+图形界面：列表中选中图标 →「隐藏选中」；「选项」里可设置开机自启、开机时最小化到托盘、
+关闭时缩到托盘、隐藏本工具自己的托盘图标、以及快捷键。
 
 ## 快捷键
 
@@ -42,15 +48,41 @@ TrayHider.exe --selftest     自检隐藏/恢复
 
 ## 工作原理
 
+### Windows 11
+
 Windows 11 把每个托盘图标的记录放在注册表 `HKCU\Control Panel\NotifyIconSettings`
 （含程序路径、UID / IconGuid、提示文字、图标快照）。本工具据此枚举出正在运行的图标
 （用进程路径匹配活动窗口，并用 `Shell_NotifyIconGetRect` 过滤掉已退出程序的缓存记录），
 然后调用 `Shell_NotifyIcon(NIM_MODIFY)` 把图标状态设为 `NIS_HIDDEN`。
 
 `NIS_HIDDEN` 是 Windows 11 官方识别的状态，资源管理器会让图标同时从任务栏和
-「显示隐藏的图标」溢出窗口中消失，而图标所属程序本身完全不受影响。隐藏规则保存到
-`%LOCALAPPDATA%\TrayHider\settings.json`，后台定时重新应用，因此程序重启或资源管理器
-重建托盘之后隐藏状态依然保持。
+「显示隐藏的图标」溢出窗口中消失，而图标所属程序本身完全不受影响。
+
+### Windows 10
+
+Windows 10 的通知区域是传统的 Explorer 工具栏（`Shell_TrayWnd → TrayNotifyWnd →
+SysPager → ToolbarWindow32`），每个图标是工具栏上的一个按钮。本工具跨进程读取这些按钮的
+结构和提示文字，再用 `TB_HIDEBUTTON` 把指定按钮移入「显示隐藏的图标」溢出区——
+这就是 Windows 10 原生的隐藏方式，图标所属程序同样完全不受影响。
+（Win10 没有 `NotifyIconSettings` 那套字段，所以不能复用 Win11 的路径。）
+
+> 说明：**远程桌面会话**里的托盘图标属于另一个会话/桌面，无法枚举，不支持隐藏。
+>
+> 说明：**Windows 10 默认把新程序的图标放进「显示隐藏的图标」溢出区**，所以本工具刚装好时
+> 任务栏上可能看不到自己的图标——点任务栏右下角的 `^` 就能看到，也可以把它拖到任务栏上常驻显示。
+> 程序启动时会自动检测并提示一次。
+
+## 同类工具对比
+
+| 工具 | 平台 | 说明 |
+| --- | --- | --- |
+| TrayHider（本项目） | Win10 / Win11 | 按图标隐藏，快捷键可自定义，被动监听 |
+| [LCiZY/HideTrayIcon](https://github.com/LCiZY/HideTrayIcon) | Win10 | `ToolbarWindow32` + `TB_DELETEBUTTON`，命令行 |
+| [ChisaJiang/TrayIconHider](https://github.com/ChisaJiang/TrayIconHider) | Win10 | 只读查询 + 隐藏按钮状态，无注入 |
+| [HCLonely/TrayPilot](https://github.com/HCLonely/TrayPilot) | Win11 | 功能最全，但依赖 WebView2 + 原生模块 |
+| [gohide/GoHide](https://github.com/gohide/GoHide) | Win10 / Win11 | 商业闭源（免费 3 个应用），连窗口和任务栏一起隐藏 |
+| [Lonely-Atom/HideTaskbar](https://github.com/Lonely-Atom/HideTaskbar) | Win10 / Win11 | 整条任务栏隐藏（不是按图标） |
+| [fcFn/traymond](https://github.com/fcFn/traymond) | Win7+ | 把窗口最小化到托盘（不是隐藏托盘图标） |
 
 ## 从源码编译
 

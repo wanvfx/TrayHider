@@ -15,6 +15,7 @@ namespace TrayHider
 
         private HotkeyEngine hotkey;
         private bool hotkeyHookReady;
+        private bool startHidden;
 
         private readonly ListView list = new ListView();
         private readonly TextBox filter = new TextBox();
@@ -32,9 +33,10 @@ namespace TrayHider
         public MainForm(Settings settings)
         {
             this.settings = settings;
+            startHidden = settings.AutoStart && settings.MinimizeToTrayOnStart;
             timer.Interval = 2500;
-            Text = "TrayHider · Windows 11 托盘图标隐藏工具";
-            Icon = LoadAppIcon();
+            Text = "TrayHider-托盘图标隐藏工具";
+            Icon = CreateAppIcon();
             Size = new Size(1000, 620);
             MinimumSize = new Size(720, 420);
             StartPosition = FormStartPosition.CenterScreen;
@@ -79,6 +81,13 @@ namespace TrayHider
             closeToTray.Checked = settings.CloseToTray;
             closeToTray.CheckedChanged += delegate { settings.CloseToTray = closeToTray.Checked; };
             options.DropDownItems.Add(autoStart);
+            var minimizeOnStart = new ToolStripMenuItem("开机启动时最小化到托盘(&M)") { CheckOnClick = true };
+            minimizeOnStart.Checked = settings.MinimizeToTrayOnStart;
+            minimizeOnStart.CheckedChanged += delegate
+            {
+                settings.MinimizeToTrayOnStart = minimizeOnStart.Checked;
+                SettingsStore.Save(settings);
+            };
             options.DropDownItems.Add(closeToTray);
             var hotkey = new ToolStripMenuItem("快捷键设置(&K)...");
             hotkey.Click += delegate
@@ -93,6 +102,14 @@ namespace TrayHider
             hideSelf.CheckedChanged += delegate { SetHideSelfIcon(hideSelf.Checked); };
             options.DropDownItems.Add(hotkey);
             options.DropDownItems.Add(hideSelf);
+            var scanOverflow = new ToolStripMenuItem("扫描时包含溢出区图标（会弹出溢出窗口）(&O)") { CheckOnClick = true };
+            scanOverflow.Checked = settings.ScanOverflow;
+            scanOverflow.CheckedChanged += delegate
+            {
+                settings.ScanOverflow = scanOverflow.Checked;
+                SettingsStore.Save(settings);
+            };
+            options.DropDownItems.Add(scanOverflow);
 
             var help = new ToolStripMenuItem("帮助(&H)");
             help.DropDownItems.Add("关于 TrayHider(&A)", null, delegate { ShowAbout(); });
@@ -154,7 +171,7 @@ namespace TrayHider
 
         private void BuildTray()
         {
-            trayIcon = LoadAppIcon();
+            trayIcon = CreateAppIcon();
             tray = new NotifyIcon();
             tray.Icon = trayIcon;
             tray.Text = "TrayHider · 托盘图标隐藏工具";
@@ -168,15 +185,42 @@ namespace TrayHider
             tray.MouseDoubleClick += delegate { ShowWindow(); };
         }
 
-        private static Icon LoadAppIcon()
+        private static readonly List<Bitmap> keptIcons = new List<Bitmap>();
+
+        /// <summary>
+        /// 运行时绘制程序图标（显示器 + 被划掉的“眼睛”）。
+        /// 不依赖 exe 内嵌图标资源，避免在某些系统上取不到图标而回退成默认 exe 图标。
+        /// </summary>
+        private static Icon CreateAppIcon()
         {
-            try
+            var bmp = new Bitmap(64, 64);
+            keptIcons.Add(bmp);
+            using (var g = Graphics.FromImage(bmp))
             {
-                Icon icon = Icon.ExtractAssociatedIcon(Application.ExecutablePath);
-                if (icon != null) return icon;
+                g.Clear(Color.Transparent);
+                g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+                g.PixelOffsetMode = System.Drawing.Drawing2D.PixelOffsetMode.HighQuality;
+
+                using (var body = new SolidBrush(Color.FromArgb(0x3B, 0x7B, 0xFF)))
+                    g.FillRectangle(body, 5, 6, 54, 36);
+                using (var screen = new SolidBrush(Color.FromArgb(0xF6, 0xFA, 0xFF)))
+                    g.FillRectangle(screen, 10, 11, 44, 26);
+                using (var stand = new SolidBrush(Color.FromArgb(0x17, 0x3F, 0x8C)))
+                    g.FillRectangle(stand, 28, 42, 8, 11);
+                using (var foot = new SolidBrush(Color.FromArgb(0x3B, 0x7B, 0xFF)))
+                    g.FillRectangle(foot, 15, 53, 34, 6);
+
+                using (var pen = new Pen(Color.FromArgb(0x1E, 0x56, 0xC8), 4f))
+                {
+                    pen.StartCap = System.Drawing.Drawing2D.LineCap.Round;
+                    pen.EndCap = System.Drawing.Drawing2D.LineCap.Round;
+                    g.DrawEllipse(pen, 16, 19, 32, 12);
+                    using (var pupil = new SolidBrush(Color.FromArgb(0x1E, 0x56, 0xC8)))
+                        g.FillEllipse(pupil, 28, 21, 8, 8);
+                    g.DrawLine(pen, 14, 31, 50, 17);
+                }
             }
-            catch { }
-            return SystemIcons.Application;
+            return Icon.FromHandle(bmp.GetHicon());
         }
 
         private void ShowAbout()
@@ -195,7 +239,24 @@ namespace TrayHider
             timer.Start();
             ApplyHotkey();
             if (tray != null) tray.Visible = !settings.HideSelfIcon;
-            if (settings.MinimizeToTrayOnStart) Hide();
+            // Win10 会把新程序的图标放进「显示隐藏的图标」溢出区，稍等片刻后自查并提示。
+            if (!OSInfo.IsWindows11)
+            {
+                var selfCheck = new System.Windows.Forms.Timer { Interval = 3000 };
+                selfCheck.Tick += delegate { selfCheck.Stop(); CheckSelfIcon(); };
+                selfCheck.Start();
+            }
+        }
+
+        protected override void SetVisibleCore(bool value)
+        {
+            // 开机自启时默认不显示主窗口（缩在托盘里），只生效一次。
+            if (startHidden)
+            {
+                startHidden = false;
+                value = false;
+            }
+            base.SetVisibleCore(value);
         }
 
         protected override void OnHandleCreated(EventArgs e)
@@ -241,6 +302,40 @@ namespace TrayHider
             else ShowWindow();
         }
 
+        /// <summary>
+        /// Windows 10 默认把新图标放进「显示隐藏的图标」溢出区，任务栏上看不到，
+        /// 容易被误认为“图标丢了”。这里自查一次并提示用户。
+        /// </summary>
+        private void CheckSelfIcon()
+        {
+            if (IsDisposed || OSInfo.IsWindows11) return;
+            try
+            {
+                var all = TrayCatalog.Scan(0, false);
+                var self = all.FirstOrDefault(x => TrayCatalog.SamePath(x.Path, Application.ExecutablePath));
+                if (self == null)
+                {
+                    // 图标可能还在没打开过的溢出区里，点开一次再找。
+                    Win10Tray.ForceOverflowRefresh();
+                    all = TrayCatalog.Scan(0, false);
+                    self = all.FirstOrDefault(x => TrayCatalog.SamePath(x.Path, Application.ExecutablePath));
+                }
+                if (self == null)
+                {
+                    statusLabel.Text = "未在托盘找到本工具图标：可能被其他软件隐藏，或资源管理器尚未刷新";
+                    return;
+                }
+                if (self.WindowClass != "NotifyIconOverflowWindow") return;
+                if (tray != null)
+                    tray.ShowBalloonTip(6000, "TrayHider",
+                        "Windows 10 把新图标放在「显示隐藏的图标」溢出区里。\n" +
+                        "点任务栏右下角的 ^ 就能看到本工具图标，也可以把它拖到任务栏上常驻显示。",
+                        ToolTipIcon.Info);
+                statusLabel.Text = "提示：本工具图标当前在「显示隐藏的图标」溢出区（点任务栏的 ^ 可见）";
+            }
+            catch { }
+        }
+
         private void SetHideSelfIcon(bool hide)
         {
             settings.HideSelfIcon = hide;
@@ -263,13 +358,16 @@ namespace TrayHider
         private void ScanAndRefresh(bool force)
         {
             List<TrayItem> items;
-            try { items = TrayCatalog.Scan(SelfPid); }
+            try { items = TrayCatalog.Scan(SelfPid, settings.ScanOverflow); }
             catch (Exception ex) { statusLabel.Text = "扫描失败: " + ex.Message; return; }
 
             int changed = RuleEngine.Apply(settings, items);
             lastItems = items;
 
-            string signature = string.Join("|", items.Select(x => x.Key + ":" + x.State + ":" + x.Tooltip + ":" + x.Name));
+            // 只在“有哪些图标、是否隐藏”变化时才重建列表。
+            // tooltip 在 Win10 上很多软件每秒都在改，若计入签名会导致列表反复重建、
+            // 表现为明显闪烁、滚动位置被重置。
+            string signature = string.Join("|", items.Select(x => x.Key + ":" + x.State));
             if (force || signature != lastSignature)
             {
                 lastSignature = signature;
@@ -277,6 +375,7 @@ namespace TrayHider
             }
             else
             {
+                UpdateRowsInPlace(items);
                 UpdateStatus(items, changed);
             }
         }
@@ -286,6 +385,8 @@ namespace TrayHider
             if (items == null) return;
             var selected = new HashSet<string>(
                 list.SelectedItems.Cast<ListViewItem>().Select(x => x.Tag).OfType<TrayItem>().Select(x => x.Key));
+            // 记住当前滚动位置，重建列表后还原，避免“刷一下就被弹回顶部”。
+            string topKey = list.TopItem != null && list.TopItem.Tag is TrayItem top ? top.Key : null;
             string filterText = filter.Text == "按名称 / 提示 / 路径筛选" ? "" : filter.Text.Trim();
 
             // Fill the image list first and attach it before creating rows: the ListView
@@ -319,9 +420,37 @@ namespace TrayHider
             }
             list.EndUpdate();
 
+            if (topKey != null)
+            {
+                for (int i = 0; i < list.Items.Count; i++)
+                {
+                    if (list.Items[i].Tag is TrayItem item && item.Key == topKey)
+                    {
+                        list.Items[i].EnsureVisible();
+                        break;
+                    }
+                }
+            }
+
             if (old != null) old.Dispose();
 
             UpdateStatus(items, 0);
+        }
+
+        /// <summary>列表结构没变时，只更新变化的文本，不重建整张表。</summary>
+        private void UpdateRowsInPlace(List<TrayItem> items)
+        {
+            if (list.Items.Count == 0) return;
+            var byKey = new Dictionary<string, TrayItem>();
+            foreach (var item in items) byKey[item.Key] = item;
+            foreach (ListViewItem row in list.Items)
+            {
+                if (!(row.Tag is TrayItem old)) continue;
+                if (!byKey.TryGetValue(old.Key, out var fresh)) continue;
+                if (row.SubItems[1].Text != fresh.Tooltip) row.SubItems[1].Text = fresh.Tooltip;
+                string state = fresh.State == 1 ? "已隐藏" : "显示中";
+                if (row.SubItems[3].Text != state) row.SubItems[3].Text = state;
+            }
         }
 
         private static bool Matches(TrayItem item, string text)

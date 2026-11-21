@@ -21,6 +21,8 @@ namespace TrayHider
         public Guid Guid;
         public string WindowClass = "";
         public int State;
+        public IntPtr Toolbar;
+        public int Command;
 
         public string Key
         {
@@ -41,12 +43,25 @@ namespace TrayHider
         {
             get
             {
-                if (image == null && snapshot != null && snapshot.Length > 0)
+                if (image != null) return image;
+                if (snapshot != null && snapshot.Length > 0)
                 {
                     try
                     {
                         imageStream = new MemoryStream(snapshot);
                         image = Image.FromStream(imageStream);
+                    }
+                    catch { image = null; }
+                }
+                if (image == null && !string.IsNullOrEmpty(Path))
+                {
+                    // Win10 没有注册表快照，退回可执行文件自身的图标。
+                    try
+                    {
+                        using (var associated = Icon.ExtractAssociatedIcon(Path))
+                        {
+                            if (associated != null) image = associated.ToBitmap();
+                        }
                     }
                     catch { image = null; }
                 }
@@ -68,7 +83,19 @@ namespace TrayHider
         /// Enumerates live tray icons. Entries whose owning process is not running are skipped,
         /// as are shell-owned controls and (optionally) one process id.
         /// </summary>
-        public static List<TrayItem> Scan(uint excludePid)
+        public static List<TrayItem> Scan(uint excludePid, bool refreshOverflow = false)
+        {
+            // Win10 与 Win11 的通知区域实现完全不同，走两条独立路径。
+            if (!OSInfo.IsWindows11)
+            {
+                var items = Win10Tray.Scan(excludePid, refreshOverflow);
+                return items.GroupBy(x => x.Key).Select(g => g.First())
+                            .OrderBy(x => x.Name).ThenBy(x => x.Pid).ToList();
+            }
+            return ScanWindows11(excludePid);
+        }
+
+        private static List<TrayItem> ScanWindows11(uint excludePid)
         {
             var windows = new List<IntPtr>(256);
             Native.EnumProc collect = delegate(IntPtr h, IntPtr l) { windows.Add(h); return true; };
@@ -227,6 +254,7 @@ namespace TrayHider
         /// <returns>0 = shown, 1 = hidden, anything else = no live icon.</returns>
         public static int GetState(TrayItem item)
         {
+            if (!OSInfo.IsWindows11) return Win10Tray.GetState(item);
             var id = new Native.NotifyIconIdentifier
             {
                 cbSize = Native.NotifyIconIdentifierSize,
@@ -239,6 +267,7 @@ namespace TrayHider
 
         public static bool SetHidden(TrayItem item, bool hidden)
         {
+            if (!OSInfo.IsWindows11) return Win10Tray.SetHidden(item, hidden);
             var data = new Native.NotifyIconData
             {
                 cbSize = Native.NotifyIconDataSize,
