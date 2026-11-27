@@ -845,22 +845,32 @@ namespace TrayHider
             return restored;
         }
 
-        /// <summary>恢复所有被本引擎藏起来的窗口。</summary>
+        /// <summary>
+        /// 恢复所有被本引擎藏起来的窗口。
+        /// 同时把命中这些窗口的规则停用：规则还开着的话，下一轮扫描（≤400ms）
+        /// 就会把它们再藏回去，"恢复"等于没做。停用后界面上能看出来，
+        /// 想恢复拦截把开关拨回去即可。
+        /// </summary>
         public int RestoreAllHidden()
         {
             int restored = 0;
+            var affected = new List<WindowRule>();
             lock (hiddenWindows)
             {
-                var list = hiddenWindows.Keys.ToList();
-                foreach (IntPtr h in list)
+                foreach (var kv in hiddenWindows.ToList())
                 {
+                    IntPtr h = kv.Key;
                     hiddenWindows.Remove(h);
-                    if (Native.IsWindow(h))
-                    {
-                        Native.ShowWindow(h, Native.SW_SHOWNORMAL);
-                        restored++;
-                    }
+                    if (!Native.IsWindow(h)) continue;
+                    Native.ShowWindow(h, Native.SW_SHOWNORMAL);
+                    restored++;
+                    if (kv.Value != null && !affected.Contains(kv.Value)) affected.Add(kv.Value);
                 }
+            }
+            if (affected.Count > 0)
+            {
+                lock (SettingsStore.RulesGate)
+                    foreach (var r in affected) r.Enabled = false;
             }
             journal.Clear();
             return restored;

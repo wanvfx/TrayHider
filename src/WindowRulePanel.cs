@@ -997,13 +997,22 @@ namespace TrayHider
         /// 开关只有"开 / 关"两态（旋钮只落在左右两端）。
         /// 组内"部分启用"不再画成中间态——那看着像卡住了；改成在标题后面写"（部分启用）"。
         /// </summary>
-        private void DrawSwitch(Graphics g, Rectangle bounds, bool on)
+        /// <summary>
+        /// 开关在单元格里的实际矩形。绘制与点击命中共用这一处，
+        /// 否则列宽变了会出现"画在一个地方、点在另一个地方"。
+        /// </summary>
+        private static Rectangle SwitchRect(Rectangle bounds)
         {
-            int w = 32, h = 16;
+            const int w = 32, h = 16;
             int x = bounds.X + Math.Max(2, (bounds.Width - w) / 2);
             int y = bounds.Y + Math.Max(0, (bounds.Height - h) / 2);
-            Rectangle r = Rectangle.FromLTRB(x, y, x + w, y + h);
-            using (var path = RoundSwitch(r, h / 2))
+            return Rectangle.FromLTRB(x, y, x + w, y + h);
+        }
+
+        private void DrawSwitch(Graphics g, Rectangle bounds, bool on)
+        {
+            Rectangle r = SwitchRect(bounds);
+            using (var path = RoundSwitch(r, 8))
             using (var brush = new SolidBrush(on ? Color.FromArgb(0xB0, 0xB0, 0xB8)      // 开：浅灰
                                                 : Color.FromArgb(0xDA, 0xDA, 0xDE)))   // 关：更浅的灰
             using (var edge = new Pen(Color.FromArgb(0x96, 0x96, 0x9E)))              // 描边，保证任何底色上都看得见
@@ -1012,7 +1021,7 @@ namespace TrayHider
                 g.FillPath(brush, path);
                 g.DrawPath(edge, path);
             }
-            int d = h - 4;
+            int d = 16 - 4;
             int kx = on ? r.Right - d - 2 : r.Left + 2;
             using (var knob = new SolidBrush(Color.White))
                 g.FillEllipse(knob, kx, r.Top + 2, d, d);
@@ -1051,6 +1060,10 @@ namespace TrayHider
             int col = ColumnIndexAt(e.X);
             if (col == 2)
             {
+                // 只有点中开关本身才算：这一列宽 90、开关只有 32 宽，
+                // 整列都能拨会误触（点到列的上下空白也跳）。
+                if (!SwitchRect(ColumnRect(2, row.Bounds)).Contains(e.X, e.Y)) return;
+
                 var popupGroup = row.Tag as RuleIo.PopupGroup;
                 if (popupGroup != null)
                 {

@@ -169,6 +169,7 @@ namespace TrayHider
             {
                 UpdateStatusForCurrentTab();
                 if (tabs.SelectedIndex == 0) ScanAndRefresh(false);
+                else if (tabs.SelectedIndex == 1 && rulePanelRefresh != null) rulePanelRefresh();   // 切过来时列表也要是新的
                 else if (tabs.SelectedIndex == 2) RefreshLogList();
             };
             return tabs;
@@ -400,9 +401,15 @@ namespace TrayHider
             windowRules.DropDownItems.Add("恢复被隐藏窗口(&H)", null, delegate
             {
                 int n = popupGuard != null ? popupGuard.RestoreAllHidden() : 0;
+                if (n > 0) SettingsStore.Save(settings);   // 顺带停用了命中这些窗口的规则
+                blockLog.Add(BlockRecord.Make("窗口规则", "恢复被隐藏窗口", "", "恢复", true,
+                    n > 0 ? ("已显示 " + n + " 个窗口，并停用对应规则（拨回开关即恢复拦截）")
+                          : "当前没有被隐藏的窗口", -1, ""));
+                if (tabs != null && tabs.SelectedIndex == 1 && rulePanelRefresh != null) rulePanelRefresh();
+                if (tabs != null && tabs.SelectedIndex == 2) QueueLogRefresh();
                 UpdateStatusForCurrentTab();
                 tray.ShowBalloonTip(3000, "TrayHider",
-                    n > 0 ? ("已恢复 " + n + " 个被隐藏的窗口") : "当前没有被隐藏的窗口", ToolTipIcon.Info);
+                    n > 0 ? ("已恢复 " + n + " 个窗口（对应规则已停用）") : "当前没有被隐藏的窗口", ToolTipIcon.Info);
             });
             windowRules.DropDownItems.Add(new ToolStripSeparator());
             windowRules.DropDownItems.Add("导出运行日志…", null, delegate { ExportLog(); });
@@ -590,8 +597,11 @@ namespace TrayHider
                 {
                     var exported = settings.WindowRules ?? new List<WindowRule>();
                     RuleIo.Export(exported, dialog.FileName);
+                    blockLog.Add(BlockRecord.Make("窗口规则", "导出规则", "", "导出", true,
+                        exported.Count + " 条 → " + dialog.FileName, -1, ""));
                     MessageBox.Show(this, "已导出 " + exported.Count + " 条规则。", "TrayHider",
                         MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    RefreshAfterRuleChange();
                 }
                 catch (Exception ex)
                 {
@@ -655,10 +665,14 @@ namespace TrayHider
                     }
                     SettingsStore.Save(settings);
                     if (tabs != null && tabs.TabPages.Count > 1) tabs.SelectedIndex = 1;
+                    blockLog.Add(BlockRecord.Make("窗口规则", "导入规则", "", "导入", true,
+                        "新增 " + (rules.Count - skipped) + " 条，跳过重复 " + skipped + " 条 ← " + dialog.FileName,
+                        -1, ""));
                     MessageBox.Show(this, skipped > 0
                         ? ("已导入 " + (rules.Count - skipped) + " 条规则，跳过 " + skipped + " 条重复。")
                         : ("已导入 " + rules.Count + " 条规则。"), "TrayHider",
                         MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    RefreshAfterRuleChange();
                 }
                 catch (Exception ex)
                 {
@@ -668,6 +682,18 @@ namespace TrayHider
             }
         }
 
+
+        /// <summary>
+        /// 规则数据变了（导入 / 导出 / 恢复窗口）以后刷新界面：
+        /// 规则列表（停在规则页时）、运行日志（停在日志页时）、底部状态栏。
+        /// </summary>
+        private void RefreshAfterRuleChange()
+        {
+            if (tabs == null) return;
+            if (tabs.SelectedIndex == 1 && rulePanelRefresh != null) rulePanelRefresh();
+            else if (tabs.SelectedIndex == 2) QueueLogRefresh();
+            UpdateStatusForCurrentTab();
+        }
 
         /// <summary>外部（如命令行）请求切到某一页：0=托盘隐藏，1=窗口规则。</summary>
         public void SelectTab(int index)
