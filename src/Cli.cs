@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
@@ -237,8 +237,45 @@ namespace TrayHider
             // 否则溢出区里的图标（很可能就是旧版本隐藏的那些）根本枚举不到。
             if (!OSInfo.IsWindows11) Win10Tray.ForceOverflowRefresh();
             var items = TrayCatalog.Scan(SelfPid, !OSInfo.IsWindows11);
-            int changed = RuleEngine.RestoreAll(settings, items);
+            int changed = RuleEngine.RestoreAll(settings, items, null);
             Say("已恢复 " + changed + " 个图标（当前处于隐藏状态的全部图标）");
+            Flush();
+            return 0;
+        }
+
+        /// <summary>恢复被窗口规则藏起来的窗口（读 hidden.json，见 PopupGuard.RecoverFromLastCrash）。</summary>
+        public static int RunRestoreHiddenWindows()
+        {
+            Attach();
+            var settings = SettingsStore.Load();
+            var log = new BlockLog();
+            using (var guard = new PopupGuard(settings, log))
+            {
+                int n = guard.RecoverFromLastCrash();
+                Say(n > 0 ? ("已恢复 " + n + " 个被藏起的窗口") : "当前没有被藏起的窗口");
+            }
+            Flush();
+            return 0;
+        }
+
+        /// <summary>导出运行日志（含「判定」记录），便于排查时发出来。</summary>
+        public static int RunExportDiagnostics()
+        {
+            Attach();
+            var log = new BlockLog();
+            string path = Path.Combine(Path.GetTempPath(), "TrayHider_diagnostics.json");
+            try
+            {
+                var ms = new MemoryStream();
+                new System.Runtime.Serialization.Json.DataContractJsonSerializer(typeof(List<BlockRecord>))
+                    .WriteObject(ms, log.Snapshot());
+                File.WriteAllText(path, Encoding.UTF8.GetString(ms.ToArray()), Encoding.UTF8);
+                Say("已导出 " + log.Snapshot().Count + " 条运行日志到: " + path);
+            }
+            catch (Exception ex)
+            {
+                Say("导出失败: " + ex.Message);
+            }
             Flush();
             return 0;
         }
@@ -262,15 +299,18 @@ namespace TrayHider
         public static int RunHelp()
         {
             Attach();
-            Say("TrayHider - 托盘图标隐藏工具 v" + BuildInfo.Version);
+            Say("TrayHider - 藏起一切打扰 v" + BuildInfo.Version);
             Say("  TrayHider                  启动图形界面（常驻托盘）");
             Say("  TrayHider --list           列出所有活动托盘图标");
             Say("  TrayHider --hide <关键字>  按进程名 / 提示文字 / 路径关键字隐藏图标");
             Say("  TrayHider --show <关键字>  恢复已隐藏的图标");
             Say("  TrayHider --restore-all    恢复当前所有处于隐藏状态的图标（救回旧版本隐藏的图标）");
+            Say("  TrayHider --restore-hidden-windows  恢复被窗口规则藏起来的窗口");
+            Say("  TrayHider --export-diagnostics     导出运行日志（含判定记录）到 %TEMP%");
             Say("  TrayHider --selftest       自检：创建测试图标并验证隐藏与恢复");
             Say("  TrayHider --about          打开“关于”对话框");
             Say("  TrayHider --hotkey         打开“快捷键设置”面板");
+            Say("  TrayHider --winrules       打开“窗口规则”面板");
             Say("  TrayHider --hotkey-test    自检当前快捷键的触发逻辑");
             Say("  TrayHider --win10-probe    探测 Win10 传统托盘工具栏（诊断用）");
             Flush();

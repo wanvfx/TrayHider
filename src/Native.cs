@@ -1,4 +1,5 @@
 using System;
+using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Text;
 
@@ -68,6 +69,18 @@ namespace TrayHider
 
         [DllImport("user32.dll")]
         public static extern bool EnumChildWindows(IntPtr parent, EnumProc callback, IntPtr lParam);
+
+        // z 序遍历顶层窗口：GetTopWindow 拿最上层，再用 GW_HWNDNEXT 往下走
+        [DllImport("user32.dll")]
+        public static extern IntPtr GetTopWindow(IntPtr hWnd);
+
+        [DllImport("user32.dll")]
+        public static extern IntPtr GetWindow(IntPtr hWnd, uint direction);
+
+        public const uint GW_HWNDFIRST = 0;
+        public const uint GW_HWNDLAST = 1;
+        public const uint GW_HWNDNEXT = 2;
+        public const uint GW_HWNDPREV = 3;
 
         [DllImport("user32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
         public static extern IntPtr FindWindowExW(IntPtr parent, IntPtr after, string cls, string window);
@@ -147,6 +160,146 @@ namespace TrayHider
                 return "";
             }
             finally { CloseHandle(handle); }
+        }
+
+        // ---- 窗口拦截（PopupGuard）所需的 Win32 ----
+
+        public const int SW_HIDE = 0;
+        public const int SW_SHOWNORMAL = 1;
+
+        // SetWindowDisplayAffinity 只能作用于本进程窗口；跨进程会被拒绝（err=5）。
+        public const uint WDA_NONE = 0x00000000;
+        public const uint WDA_EXCLUDEFROMCAPTURE = 0x00000011;
+
+        [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+        public static extern int GetWindowTextW(IntPtr hWnd, StringBuilder text, int count);
+
+        [DllImport("user32.dll")]
+        public static extern bool IsHungAppWindow(IntPtr hWnd);
+
+        [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+        public static extern IntPtr WindowFromPoint(POINT point);
+
+        public const int GWL_EXSTYLE = -20;
+        public const int WS_EX_TOOLWINDOW = 0x00000080;
+        public const int WS_EX_TRANSPARENT = 0x00000020;
+
+        [DllImport("user32.dll")]
+        public static extern int GetWindowLong(IntPtr hWnd, int index);
+
+        // ---- 截图拦截：截窗口图 + 采样 ----
+
+        // PW_RENDERFULLCONTENT = 2，能截到 DirectUI/硬件合成的窗口内容
+        [DllImport("user32.dll")]
+        public static extern bool PrintWindow(IntPtr hwnd, IntPtr hdcBlt, uint flags);
+
+        [DllImport("user32.dll")]
+        public static extern IntPtr GetDC(IntPtr hwnd);
+
+        [DllImport("user32.dll")]
+        public static extern IntPtr GetWindowDC(IntPtr hwnd);
+
+        [DllImport("user32.dll")]
+        public static extern int ReleaseDC(IntPtr hwnd, IntPtr hdc);
+
+        [DllImport("gdi32.dll")]
+        public static extern IntPtr CreateCompatibleDC(IntPtr hdc);
+
+        [DllImport("gdi32.dll")]
+        public static extern IntPtr CreateCompatibleBitmap(IntPtr hdc, int width, int height);
+
+        [DllImport("gdi32.dll")]
+        public static extern IntPtr SelectObject(IntPtr hdc, IntPtr obj);
+
+        [DllImport("gdi32.dll")]
+        public static extern uint GetPixel(IntPtr hdc, int x, int y);
+
+        [DllImport("gdi32.dll")]
+        public static extern bool DeleteObject(IntPtr obj);
+
+        [DllImport("gdi32.dll")]
+        public static extern bool DeleteDC(IntPtr hdc);
+
+        [DllImport("gdi32.dll")]
+        public static extern bool BitBlt(IntPtr hdc, int x, int y, int width, int height,
+                                         IntPtr hdcSrc, int x1, int y1, uint rop);
+
+        [StructLayout(LayoutKind.Sequential)]
+        public struct RECT
+        {
+            public int Left, Top, Right, Bottom;
+        }
+
+        [DllImport("user32.dll")]
+        public static extern bool GetWindowRect(IntPtr hwnd, out RECT rect);
+
+        /// <summary>截取窗口到指定位图；失败返回 false（部分窗口 PrintWindow 不支持）。</summary>
+        public static bool CaptureWindow(IntPtr hwnd, IntPtr hdcDest, int width, int height)
+        {
+            if (width <= 0 || height <= 0) return false;
+            // 先试 PW_RENDERFULLCONTENT（Win8+），失败再试普通模式
+            if (PrintWindow(hwnd, hdcDest, 2)) return true;
+            return PrintWindow(hwnd, hdcDest, 0);
+        }
+
+        [DllImport("user32.dll")]
+        public static extern bool GetCursorPos(out POINT point);
+
+        // 物理按键状态：轮询用，不依赖消息队列（点击落到哪里都能检测到）
+        [DllImport("user32.dll")]
+        public static extern short GetAsyncKeyState(int key);
+
+        [DllImport("user32.dll")]
+        public static extern bool ShowWindow(IntPtr hWnd, int command);
+
+        [DllImport("user32.dll")]
+        public static extern bool SetForegroundWindow(IntPtr hWnd);
+
+        [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+        public static extern int GetWindowTextLength(IntPtr hWnd);
+
+        [DllImport("user32.dll", SetLastError = true)]
+        public static extern bool SetWindowDisplayAffinity(IntPtr hWnd, uint affinity);
+
+        [StructLayout(LayoutKind.Sequential)]
+        public struct POINT
+        {
+            public int X, Y;
+        }
+
+        private const uint PROCESS_VM_OPERATION = 0x0008, PROCESS_VM_READ = 0x0010, PROCESS_VM_WRITE = 0x0020;
+        private const uint MEM_COMMIT = 0x1000, MEM_RESERVE = 0x2000, MEM_FREE = 0x10000;
+        private const uint PAGE_READWRITE = 4;
+
+        /// <summary>
+        /// 读窗口标题。用 GetWindowTextW（对 WinForms 等窗口有效，实测比手发 WM_GETTEXT 可靠）。
+        /// 先跳过「挂起」的窗口（IsHungAppWindow）：个别窗口会一直等 WM_GETTEXT，
+        /// 宁可少读一个标题，也不能把扫描线程卡死。
+        /// 注意：不要用「起子线程 + Join 超时」的方式调 GetWindowTextW——实测会让进程崩溃。
+        /// </summary>
+        public static string WindowTitle(IntPtr hWnd)
+        {
+            if (hWnd == IntPtr.Zero) return "";
+            if (IsHungAppWindow(hWnd)) return "";
+            var sb = new StringBuilder(512);
+            GetWindowTextW(hWnd, sb, sb.Capacity);
+            return sb.ToString();
+        }
+    }
+
+    /// <summary>一个顶层窗口的采集信息，用于匹配与展示。</summary>
+    public sealed class WindowInfo
+    {
+        public IntPtr Handle;
+        public string Title = "";
+        public string ProcessName = "";
+        public string ClassName = "";
+        public uint ProcessId;
+
+        public string Describe()
+        {
+            string title = Title.Length > 30 ? Title.Substring(0, 30) + "…" : Title;
+            return title + "  |  " + ProcessName;
         }
     }
 }

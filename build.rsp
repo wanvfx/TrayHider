@@ -1,4 +1,4 @@
-/nologo
+﻿/nologo
 /target:winexe
 /platform:x64
 /optimize+
@@ -28,5 +28,16 @@ src\MainForm.cs
 src\AboutForm.cs
 src\HotkeyForm.cs
 src\Cli.cs
+src\PopupGuard.cs
+src\CaptureOverlayForm.cs
+src\PreviewForm.cs
+src\ImageMatcher.cs
+src\RuleFingerprint.cs
+src\GuardDecision.cs
+src\HiddenJournal.cs
+src\RuleIo.cs
+src\WindowRulePanel.cs
+src\WindowRuleEditForm.cs
+src\Util.cs
 src\SelfTest.cs
 src\Program.cs

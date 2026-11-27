@@ -1,7 +1,7 @@
-using System.Reflection;
+﻿using System.Reflection;
 
 [assembly: AssemblyTitle("TrayHider")]
-[assembly: AssemblyDescription("托盘图标隐藏工具")]
+[assembly: AssemblyDescription("藏起一切打扰")]
 [assembly: AssemblyProduct("TrayHider")]
 [assembly: AssemblyCopyright("Copyright (c) wanvfx")]
 [assembly: AssemblyVersion(TrayHider.BuildInfo.FileVersion)]
