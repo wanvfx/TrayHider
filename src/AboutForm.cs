@@ -22,12 +22,13 @@ namespace TrayHider
             MinimizeBox = false;
             MaximizeBox = false;
             ShowInTaskbar = false;
+            KeyPreview = true; // 没有按钮，Esc 关闭
 
             // 与程序其他界面保持一致：用系统默认字体（本机的「宋体」9pt），
             // 只有标题加粗，其余全部继承同一个字体，不再单独指定 Segoe UI。
             Font = SystemFonts.DefaultFont;
 
-            const int pad = 12;
+            const int pad = 14;
             const int contentWidth = 400;
             var titleFont = new Font(Font.FontFamily, Font.Size, FontStyle.Bold);
             int y = pad;
@@ -47,13 +48,13 @@ namespace TrayHider
                 pad + TextRenderer.MeasureText(title.Text, titleFont).Width + 6, y);
             version.DoubleClick += delegate { OpenProjectUrl(); };
 
-            y += title.GetPreferredSize(Size.Empty).Height + 2;
+            y += title.GetPreferredSize(Size.Empty).Height + 8;
 
             var tagline = new Label();
             tagline.Text = "藏起一切打扰 · 作者 wanvfx · 开源（MIT）";
             tagline.AutoSize = true;
             tagline.Location = new Point(pad, y);
-            y += tagline.GetPreferredSize(Size.Empty).Height + 10;
+            y += tagline.GetPreferredSize(Size.Empty).Height + 18;
 
             var body = new Label();
             body.Text = Summary;
@@ -61,13 +62,7 @@ namespace TrayHider
             body.Size = new Size(contentWidth,
                 TextRenderer.MeasureText(Summary, Font, new Size(contentWidth, 0),
                     TextFormatFlags.WordBreak).Height + 2);
-            y += body.Height + 10;
-
-            var close = new Button();
-            close.Text = "关闭";
-            close.Size = new Size(96, 26);
-            close.Location = new Point(pad + (contentWidth - close.Width) / 2, y);
-            y += close.Height;
+            y += body.Height;
 
             ClientSize = new Size(contentWidth + pad * 2, y + pad);
 
@@ -75,9 +70,12 @@ namespace TrayHider
             Controls.Add(version);
             Controls.Add(tagline);
             Controls.Add(body);
-            Controls.Add(close);
+        }
 
-            Shown += delegate { close.Focus(); };
+        protected override void OnKeyDown(KeyEventArgs e)
+        {
+            if (e.KeyCode == Keys.Escape) { Close(); return; }
+            base.OnKeyDown(e);
         }
 
         private void OpenProjectUrl()
