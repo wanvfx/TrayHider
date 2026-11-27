@@ -167,7 +167,7 @@ namespace TrayHider
 
             sequenceLabel.Location = new Point(8, 68);
             sequenceLabel.Size = new Size(512, 44);
-            sequenceLabel.Font = new Font("Segoe UI", 10f, FontStyle.Bold);
+            sequenceLabel.Font = new Font(sequenceLabel.Font.FontFamily, sequenceLabel.Font.Size, FontStyle.Bold);
 
             var addLabel = new Label { Text = "手动添加：", AutoSize = true, Location = new Point(8, 122) };
 

@@ -23,46 +23,48 @@ namespace TrayHider
             MaximizeBox = false;
             ShowInTaskbar = false;
 
-            const int pad = 18;          // 四周留白
-            const int contentWidth = 524; // 正文可用宽度
+            // 与程序其他界面保持一致：用系统默认字体（本机的「宋体」9pt），
+            // 只有标题加粗，正文/副标题/按钮全部继承同一个字体，不再单独指定 Segoe UI。
+            Font = SystemFonts.DefaultFont;
 
-            var titleFont = new Font("Segoe UI", 11f, FontStyle.Bold);
-            var textFont = new Font("Segoe UI", 9f);
+            const int pad = 18;
+            const int contentWidth = 524;
+            int y = pad;
 
             var title = new Label();
             title.Text = "TrayHider";
-            title.Font = titleFont;
+            title.Font = new Font(Font.FontFamily, Font.Size, FontStyle.Bold);
             title.AutoSize = true;
-            title.Location = new Point(pad, pad);
+            title.Location = new Point(pad, y);
+            y += title.Height + 6;
 
-            // 版本号：外观与普通文字一致（不下划线、不改颜色），双击打开项目主页。
+            // 版本号：外观与普通文字一致（不下划线、不改颜色、同字体同字号），双击打开项目主页。
             var version = new Label();
             version.Text = "v" + BuildInfo.Version;
-            version.Font = titleFont;
             version.AutoSize = true;
             version.Cursor = Cursors.Hand;
             version.Location = new Point(
-                pad + TextRenderer.MeasureText(title.Text, titleFont).Width + 8, pad);
+                pad + TextRenderer.MeasureText(title.Text, title.Font).Width + 6, title.Top);
             version.DoubleClick += delegate { OpenProjectUrl(); };
 
             var tagline = new Label();
             tagline.Text = "藏起一切打扰 · 作者 wanvfx · 开源（MIT）";
-            tagline.Font = textFont;
             tagline.AutoSize = true;
-            tagline.Location = new Point(pad, pad + 30);
+            tagline.Location = new Point(pad, y);
+            y += tagline.Height + 14;
 
             var body = new Label();
             body.Text = Summary;
-            body.Font = textFont;
-            body.Location = new Point(pad, pad + 58);
+            body.Location = new Point(pad, y);
             body.Size = new Size(contentWidth,
-                TextRenderer.MeasureText(Summary, textFont, new Size(contentWidth, 0),
+                TextRenderer.MeasureText(Summary, Font, new Size(contentWidth, 0),
                     TextFormatFlags.WordBreak).Height + 2);
+            y += body.Height + 14;
 
             var close = new Button();
             close.Text = "关闭";
-            close.Size = new Size(120, 32);
-            close.Location = new Point(pad + (contentWidth - close.Width) / 2, body.Bottom + 16);
+            close.Size = new Size(120, 30);
+            close.Location = new Point(pad + (contentWidth - close.Width) / 2, y);
             close.Click += delegate { Close(); };
 
             ClientSize = new Size(contentWidth + pad * 2, close.Bottom + pad);
