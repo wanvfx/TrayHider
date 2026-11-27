@@ -56,12 +56,12 @@ namespace TrayHider
             tagline.Location = new Point(pad, y);
             y += tagline.GetPreferredSize(Size.Empty).Height + 18;
 
+            // 正文高度必须用布局引擎自己的计算：TextRenderer 量出来的高度会少一行，
+            // 直接用它会让最后一行被裁掉。
             var body = new Label();
             body.Text = Summary;
             body.Location = new Point(pad, y);
-            body.Size = new Size(contentWidth,
-                TextRenderer.MeasureText(Summary, Font, new Size(contentWidth, 0),
-                    TextFormatFlags.WordBreak).Height + 2);
+            body.Size = body.GetPreferredSize(new Size(contentWidth, 0));
             y += body.Height;
 
             ClientSize = new Size(contentWidth + pad * 2, y + pad);
